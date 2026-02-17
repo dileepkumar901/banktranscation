@@ -43,6 +43,19 @@ CREATE TABLE IF NOT EXISTS friends (
 
 conn.commit()
 
+# ---------------- SESSION & LOGIN PERSISTENCE ---------------- #
+
+query_params = st.experimental_get_query_params()
+
+if "user" in query_params and "user" not in st.session_state:
+    st.session_state.user = query_params["user"][0]
+
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+if "page" not in st.session_state:
+    st.session_state.page = "Login"
+
 # ---------------- HELPER FUNCTIONS ---------------- #
 
 def hash_text(text):
@@ -73,6 +86,13 @@ def get_balance(mobile):
 def get_username(mobile):
     cursor.execute("SELECT username FROM users WHERE mobile=?", (mobile,))
     return cursor.fetchone()[0]
+
+def add_money(mobile, amount):
+    cursor.execute(
+        "UPDATE users SET balance = balance + ? WHERE mobile=?",
+        (amount, mobile)
+    )
+    conn.commit()
 
 def send_money(sender, receiver, amount, pin):
     try:
@@ -133,13 +153,17 @@ def add_friend(user, friend):
 
 # ---------------- STREAMLIT UI ---------------- #
 
-st.title("💳 DPay - Closed Wallet")
+st.title("💳 SmartPay - Closed Wallet")
 
 menu = ["Login", "Register"]
-choice = st.sidebar.selectbox("Menu", menu)
 
-if "user" not in st.session_state:
-    st.session_state.user = None
+choice = st.sidebar.selectbox(
+    "Menu",
+    menu,
+    index=menu.index(st.session_state.page)
+)
+
+st.session_state.page = choice
 
 # ---------------- REGISTER ---------------- #
 
@@ -156,6 +180,8 @@ if choice == "Register":
         if len(mobile) == 10 and len(pin) == 4:
             if register_user(username, name, mobile, password, pin):
                 st.success("Account Created! ₹1000 added as welcome balance")
+                st.session_state.page = "Login"
+                st.experimental_rerun()
             else:
                 st.error("Username or Mobile already exists")
         else:
@@ -173,9 +199,17 @@ elif choice == "Login":
         user = login_user(mobile, password)
         if user:
             st.session_state.user = mobile
+            st.experimental_set_query_params(user=mobile)
             st.success("Logged In Successfully")
         else:
             st.error("Invalid Credentials")
+
+    st.markdown("---")
+    st.write("Don't have an account?")
+
+    if st.button("Go to Register"):
+        st.session_state.page = "Register"
+        st.experimental_rerun()
 
 # ---------------- DASHBOARD ---------------- #
 
@@ -184,13 +218,24 @@ if st.session_state.user:
     username = get_username(st.session_state.user)
     st.sidebar.success(f"Welcome {username}")
     
-    option = st.sidebar.selectbox("Select Option",
-                                  ["Dashboard", "Send Money", "Friends", "Transactions", "Logout"])
+    option = st.sidebar.selectbox(
+        "Select Option",
+        ["Dashboard", "Add Money", "Send Money", "Friends", "Transactions", "Logout"]
+    )
 
     if option == "Dashboard":
         balance = get_balance(st.session_state.user)
         st.subheader("Wallet Balance")
         st.success(f"₹ {balance}")
+
+    elif option == "Add Money":
+        st.subheader("Add Money")
+
+        amount = st.number_input("Enter Amount", min_value=1.0)
+
+        if st.button("Add"):
+            add_money(st.session_state.user, amount)
+            st.success("Money Added Successfully")
 
     elif option == "Send Money":
         st.subheader("Send Money")
@@ -203,10 +248,6 @@ if st.session_state.user:
             result = send_money(st.session_state.user, receiver, amount, pin)
             if result == "Success":
                 st.success("Transaction Successful")
-
-                if st.button("Add to Friends"):
-                    msg = add_friend(st.session_state.user, receiver)
-                    st.info(msg)
             else:
                 st.error(result)
 
@@ -237,4 +278,7 @@ if st.session_state.user:
 
     elif option == "Logout":
         st.session_state.user = None
-        st.warning("Logged Out")
+        st.experimental_set_query_params()
+        st.success("Logged Out")
+        st.session_state.page = "Login"
+        st.experimental_rerun()
