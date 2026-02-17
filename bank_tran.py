@@ -133,7 +133,7 @@ def add_friend(user, friend):
 
 # ---------------- STREAMLIT UI ---------------- #
 
-st.title("💳 SmartPay - Closed Wallet")
+st.title("💳 DPay - Closed Wallet")
 
 menu = ["Login", "Register"]
 choice = st.sidebar.selectbox("Menu", menu)
