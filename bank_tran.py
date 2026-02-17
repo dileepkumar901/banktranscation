@@ -45,7 +45,8 @@ conn.commit()
 
 # ---------------- SESSION & LOGIN PERSISTENCE ---------------- #
 
-query_params = st.experimental_get_query_params()
+query_params = sst.query_params
+
 
 if "user" in query_params and "user" not in st.session_state:
     st.session_state.user = query_params["user"][0]
