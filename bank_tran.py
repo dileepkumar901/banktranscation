@@ -41,10 +41,10 @@ CREATE TABLE IF NOT EXISTS friends (
 conn.commit()
 
 # ---------------- SESSION & LOGIN PERSISTENCE ---------------- #
-query_params = st.experimental_get_query_params()
+query_params = st.query_params
 
 if "user" in query_params and "user" not in st.session_state:
-    st.session_state.user = query_params["user"][0]
+    st.session_state.user = query_params.get("user")
 
 if "user" not in st.session_state:
     st.session_state.user = None
@@ -64,7 +64,7 @@ def register_user(username, name, mobile, password, pin):
         )
         conn.commit()
         return True
-    except:
+    except sqlite3.IntegrityError:
         return False
 
 def login_user(mobile, password):
@@ -76,11 +76,13 @@ def login_user(mobile, password):
 
 def get_balance(mobile):
     cursor.execute("SELECT balance FROM users WHERE mobile=?", (mobile,))
-    return cursor.fetchone()[0]
+    result = cursor.fetchone()
+    return result[0] if result else 0
 
 def get_username(mobile):
     cursor.execute("SELECT username FROM users WHERE mobile=?", (mobile,))
-    return cursor.fetchone()[0]
+    result = cursor.fetchone()
+    return result[0] if result else ""
 
 def add_money(mobile, amount):
     cursor.execute(
@@ -120,7 +122,8 @@ def send_money(sender, receiver, amount, pin):
 
         conn.commit()
         return "Success"
-    except:
+
+    except Exception:
         conn.rollback()
         return "Transaction Failed"
 
@@ -157,7 +160,7 @@ if choice == "Register":
             if register_user(username, name, mobile, password, pin):
                 st.success("Account Created! ₹1000 added as welcome balance")
                 st.session_state.page = "Login"
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Username or Mobile already exists")
         else:
@@ -173,8 +176,9 @@ elif choice == "Login":
         user = login_user(mobile, password)
         if user:
             st.session_state.user = mobile
-            st.experimental_set_query_params(user=mobile)
+            st.query_params["user"] = mobile
             st.success("Logged In Successfully")
+            st.rerun()
         else:
             st.error("Invalid Credentials")
 
@@ -182,13 +186,13 @@ elif choice == "Login":
     st.write("Don't have an account?")
     if st.button("Go to Register"):
         st.session_state.page = "Register"
-        st.experimental_rerun()
+        st.rerun()
 
 # ---------------- DASHBOARD ---------------- #
 if st.session_state.user:
     username = get_username(st.session_state.user)
     st.sidebar.success(f"Welcome {username}")
-    
+
     option = st.sidebar.selectbox(
         "Select Option",
         ["Dashboard", "Add Money", "Send Money", "Friends", "Transactions", "Logout"]
@@ -239,7 +243,7 @@ if st.session_state.user:
 
     elif option == "Logout":
         st.session_state.user = None
-        st.experimental_set_query_params()
+        st.query_params.clear()
         st.success("Logged Out")
         st.session_state.page = "Login"
-        st.experimental_rerun()
+        st.rerun()
